@@ -9,51 +9,38 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
-    <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 
-  <!-- NuGet Package References -->
   <ItemGroup>
     <PackageReference Include="dnlib" Version="4.5.0" />
     <PackageReference Include="System.ComponentModel.Composition" Version="5.0.0" />
     <PackageReference Include="System.Collections.Immutable" Version="8.0.0" />
   </ItemGroup>
 
-  <!-- dnSpyEx References (from dnSpyEx package or local build) -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+  <!-- dnSpyEx 6.6.0rc-1 References -->
+  <ItemGroup>
     <PackageReference Include="dnSpyEx.Contracts.App" Version="6.6.0-rc1" />
     <PackageReference Include="dnSpyEx.Contracts.Debugger" Version="6.6.0-rc1" />
     <PackageReference Include="dnSpyEx.Contracts.DnSpy" Version="6.6.0-rc1" />
     <PackageReference Include="dnSpyEx.Contracts.Logic" Version="6.6.0-rc1" />
     <PackageReference Include="dnSpyEx.Contracts.Text" Version="6.6.0-rc1" />
+    <PackageReference Include="dnSpyEx.Extension" Version="6.6.0-rc1" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
-    <PackageReference Include="dnSpyEx.Contracts.App" Version="6.6.0-rc1" />
-    <PackageReference Include="dnSpyEx.Contracts.Debugger" Version="6.6.0-rc1" />
-    <PackageReference Include="dnSpyEx.Contracts.DnSpy" Version="6.6.0-rc1" />
-    <PackageReference Include="dnSpyEx.Contracts.Logic" Version="6.6.0-rc1" />
-    <PackageReference Include="dnSpyEx.Contracts.Text" Version="6.6.0-rc1" />
-  </ItemGroup>
-
-  <!-- Project References -->
   <ItemGroup>
     <ProjectReference Include="..\ParsingIniFile\WpfLogicAndUi\WpfLogicAndUi.csproj" />
   </ItemGroup>
 
-  <!-- Embedded Resources -->
   <ItemGroup>
     <Content Include="ScyllaHideDnSpyPluginx64.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
-  <!-- XAML Files -->
   <ItemGroup>
     <Page Include="ScyllaHideSettingsControl.xaml" />
   </ItemGroup>
 
-  <!-- Compile Items -->
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

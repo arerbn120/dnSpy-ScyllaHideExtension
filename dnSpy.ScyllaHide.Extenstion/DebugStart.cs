@@ -1,148 +1,154 @@
-﻿using System.ComponentModel.Composition;
+using System;
+using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using dnSpy.Contracts.Debugger;
 using dnSpy.Contracts.Text;
 
-namespace dnSpy.ScyllaHide {
-
-
+namespace dnSpy.ScyllaHide
+{
 	[Export(typeof(IDbgManagerStartListener))]
-	sealed class DebugStart : IDbgManagerStartListener 
+	sealed class DebugStart : IDbgManagerStartListener
 	{
-		public static SynchronizationContext main;
-		public static DbgManager dbg;
-		public static DebugStart Instance;
+		public static SynchronizationContext? MainContext;
+		public static DbgManager? DbgManagerInstance;
+		public static DebugStart? Instance;
 
 		[Import]
-		public ScyllaHideSettings ProgrammSettings { get; set; }
+		public ScyllaHideSettings ProgrammSettings { get; set; } = null!;
 
-		public void OnStart(DbgManager dbgManager) {
-
-			MyLogger.Instance.WriteLine(TextColor.Red, $"Dbg Manager is OnStart");
-			dbg = dbgManager;
-		    main = SynchronizationContext.Current;
+		public void OnStart(DbgManager dbgManager)
+		{
+			MyLogger.Instance.WriteLine(TextColor.Red, "Dbg Manager is OnStart");
+			DbgManagerInstance = dbgManager;
+			MainContext = SynchronizationContext.Current;
 			Instance = this;
 
-			dbgManager.IsRunningChanged += (sender, message) => { EventOnDbgManager("IsRuningChanged"); };
-			dbgManager.IsDebuggingChanged += (sender, message) => { EventOnDbgManager("IsDebugingChanged"); };
-			dbgManager.DebugTagsChanged += (sender, message) => { EventOnDbgManager("DebugTags " +message.Objects[0]); };
+			dbgManager.IsRunningChanged += (sender, message) => { EventOnDbgManager("IsRunningChanged"); };
+			dbgManager.IsDebuggingChanged += (sender, message) => { EventOnDbgManager("IsDebuggingChanged"); };
+			dbgManager.DebugTagsChanged += (sender, message) => { EventOnDbgManager($"DebugTags {message.Objects?[0]}"); };
 			dbgManager.DbgManagerMessage += (sender, message) => { EventOnDbgManager("DebugManagerMessage"); };
 			dbgManager.CurrentRuntimeChanged += (sender, message) => { EventOnDbgManager("CurrentRuntimeChanged"); };
 			dbgManager.ProcessesChanged += (sender, message) => { EventOnDbgManager("ProcessChanged"); };
 			dbgManager.CurrentProcessChanged += (sender, message) => { EventOnDbgManager("CurrentProcessChanged"); };
-			dbgManager.Message += (sender, args) => { MessageFromDbg(dbgManager,args); };
+			dbgManager.Message += (sender, args) => { MessageFromDbg(dbgManager, args); };
 		}
 
 		private void EventOnDbgManager(string text)
 		{
-			MyLogger.Instance.WriteLine(TextColor.Red,text);
+			MyLogger.Instance.WriteLine(TextColor.Red, text);
 		}
 
-		private void MyCustomMethod(DbgManager dbgManager, DbgCollectionChangedEventArgs<DbgProcess> args)
-		{
-		}
+		private static int orderCounter;
 
-		private static int order;
 		private static void MessageFromDbg(DbgManager dbgManager, DbgMessageEventArgs message)
 		{
+			MyLogger.Instance.WriteLine($"Message type: {message.Kind}");
 
-			MyLogger.Instance.WriteLine($"We have message type {message.Kind.ToString()}");
 			if (message.Kind == DbgMessageKind.ModuleLoaded)
 			{
-				DbgMessageModuleLoadedEventArgs moduleLoaded = (DbgMessageModuleLoadedEventArgs) message;
-				MyLogger.Instance.WriteLine($"ModuleLoaded: {moduleLoaded.Module.Filename}");
-
-
-			}
-			if (!Instance.ProgrammSettings.IsEnabledOption)
-				return;
-				
-
-			if (dbgManager.Processes.Length>0) {
-				for (int i = 0; i < dbgManager.Processes.Length; i++)
+				if (message is DbgMessageModuleLoadedEventArgs moduleLoaded)
 				{
-					int pid = dbgManager.Processes[i].Id;
-					StartScyllaDide(pid,dbgManager,message);
-					MyLogger.Instance.WriteLine(TextColor.Red, $"PointerSize = {dbgManager.Processes[i].PointerSize}");
+					MyLogger.Instance.WriteLine($"ModuleLoaded: {moduleLoaded.Module.Filename}");
+				}
+			}
 
+			if (Instance?.ProgrammSettings.IsEnabledOption != true)
+				return;
+
+			if (dbgManager.Processes.Length > 0)
+			{
+				foreach (var process in dbgManager.Processes)
+				{
+					int pid = process.Id;
+					StartScyllaHide(pid, dbgManager, message);
+					MyLogger.Instance.WriteLine(TextColor.Red, $"PointerSize = {process.PointerSize}");
 				}
 			}
 		}
 
-		private static void StartScyllaDide(int proccessId, DbgManager dbgManager, DbgMessageEventArgs mesage)
+		private static void StartScyllaHide(int processId, DbgManager dbgManager, DbgMessageEventArgs message)
 		{
-
-			switch (mesage.Kind)
+			switch (message.Kind)
 			{
-
-
 				case DbgMessageKind.ProcessCreated:
-						string currentDirectory = System.Environment.CurrentDirectory;
-						ScyllaHideInit(currentDirectory);
-						MyLogger.Instance.WriteLine(TextColor.Red, $"InitScyllaHide");
-
-						DbgMessageProcessCreatedEventArgs processCreated = (DbgMessageProcessCreatedEventArgs) mesage;
-
-						ScyllaHideDebugLoop(1, (int) proccessId, true, false);
-						ScyllaHideDebugLoop(3, (int)proccessId);
-
-
-					MyLogger.Instance.WriteLine(TextColor.Red, $"PointerSize = {processCreated.Process.PointerSize}");
-					break;
-
-
-				case DbgMessageKind.ModuleLoaded:
-
-					DbgMessageModuleLoadedEventArgs moduleLoaded = (DbgMessageModuleLoadedEventArgs) mesage;
-					string filename = moduleLoaded.Module.Filename;
-					if (filename.Contains(".dll"))
 					{
-						bool IsNtDLL = filename.Contains("ntdll.dll");
-						ScyllaHideDebugLoop(2, (int) proccessId, false, IsNtDLL);
+						string currentDirectory = Environment.CurrentDirectory;
+						ScyllaHideInit(currentDirectory);
+						MyLogger.Instance.WriteLine(TextColor.Red, "InitScyllaHide");
 
-						MyLogger.Instance.WriteLine(TextColor.Red, $"Scylla Hide dll loaded	");
+						if (message is DbgMessageProcessCreatedEventArgs processCreated)
+						{
+							ScyllaHideDebugLoop(1, processId, true, false);
+							ScyllaHideDebugLoop(3, processId);
+							MyLogger.Instance.WriteLine(TextColor.Red, $"PointerSize = {processCreated.Process.PointerSize}");
+						}
+						break;
 					}
 
-					break;
-				case DbgMessageKind.BoundBreakpoint:
+				case DbgMessageKind.ModuleLoaded:
+					{
+						if (message is DbgMessageModuleLoadedEventArgs moduleLoaded)
+						{
+							string filename = moduleLoaded.Module.Filename;
+							if (filename.Contains(".dll", StringComparison.OrdinalIgnoreCase))
+							{
+								bool isNtDll = filename.Contains("ntdll.dll", StringComparison.OrdinalIgnoreCase);
+								ScyllaHideDebugLoop(2, processId, false, isNtDll);
+								MyLogger.Instance.WriteLine(TextColor.Red, "ScyllaHide DLL loaded");
+							}
+						}
+						break;
+					}
 
-						ScyllaHideDebugLoop(3, (int) proccessId);
-						MyLogger.Instance.WriteLine(TextColor.Red, $"Scylla Hide Breakpoint");
-				break;
+				case DbgMessageKind.BoundBreakpoint:
+					{
+						ScyllaHideDebugLoop(3, processId);
+						MyLogger.Instance.WriteLine(TextColor.Red, "ScyllaHide Breakpoint");
+						break;
+					}
 
 				default:
-						ScyllaHideDebugLoop(0, (int) proccessId);
-						MyLogger.Instance.WriteLine(TextColor.Red, $"Scylla Hide otherDebug message");
-				break;
-
+					{
+						ScyllaHideDebugLoop(0, processId);
+						MyLogger.Instance.WriteLine(TextColor.Red, "ScyllaHide Other Debug Message");
+						break;
+					}
 			}
-
 		}
 
-		private static void InjectUsingProgram(ulong proccessId, string scyllaProg, string dll)
+		private static void InjectUsingProgram(ulong processId, string scyllaProgram, string dllPath)
 		{
-			ProcessStartInfo startInfo = new ProcessStartInfo();
-			startInfo.FileName = scyllaProg;
-			startInfo.Arguments = $"pid:{proccessId} {dll}";
-			startInfo.CreateNoWindow = true;
+			var startInfo = new ProcessStartInfo
+			{
+				FileName = scyllaProgram,
+				Arguments = $"pid:{processId} {dllPath}",
+				CreateNoWindow = true
+			};
 
-			Thread newThrad = new Thread(() => { Process.Start(startInfo); });
-			newThrad.Start();
+			var thread = new Thread(() =>
+			{
+				try
+				{
+					Process.Start(startInfo);
+				}
+				catch (Exception ex)
+				{
+					MyLogger.Instance.WriteLine(TextColor.Red, $"Error injecting: {ex.Message}");
+				}
+			});
+			thread.Start();
 		}
 
-
+		// P/Invoke declarations for ScyllaHide
 		[DllImport("ScyllaHideDnSpyPluginx64.dll", EntryPoint = "ScyllaHideInit", CallingConvention = CallingConvention.Cdecl)]
-		private static extern void ScyllaHideInit([Out, MarshalAsAttribute(UnmanagedType.LPWStr)] string directory);
+		private static extern void ScyllaHideInit([MarshalAs(UnmanagedType.LPWStr)] string directory);
 
 		[DllImport("ScyllaHideDnSpyPluginx64.dll", CallingConvention = CallingConvention.Cdecl)]
-
 		private static extern void ScyllaHideReset();
 
 		[DllImport("ScyllaHideDnSpyPluginx64.dll", CallingConvention = CallingConvention.Cdecl)]
-		private static extern void ScyllaHideDebugLoop(int DebugEvent, int ProcessID, bool lpStartAddressIsNull = false, bool lpBaseOfNtDll = false);
-
-		private const string DllFilePath = @"ScyllaHideGenericPluginx64.dll";
+		private static extern void ScyllaHideDebugLoop(int debugEvent, int processId, [MarshalAs(UnmanagedType.Bool)] bool lpStartAddressIsNull = false, [MarshalAs(UnmanagedType.Bool)] bool lpBaseOfNtDll = false);
 	}
-} 
+}
